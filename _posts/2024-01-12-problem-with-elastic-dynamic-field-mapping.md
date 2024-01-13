@@ -11,7 +11,9 @@ key: elastic-search-dynamic-mapping
 > *At the heart of ELK stack is Elasticsearch, a distributed search and analytics engine. Then, we have Logstash which facilitate collecting, aggregating, and enriching our data and storing it in Elasticsearch. Finally, there is Kibana which enables us to interactively explore, visualize, and share insights into out data, manage and monitor the stack. Elasticsearch is where the indexing, search, and analysis magic happens..* 
 
 
-## Background
+## Problem Statement
+
+Recently, I came across an issue(or feature?🤔)
 
 Mac OS X doesn't ship with its own copy of `MySQL`, nor does `Sequel Pro`. You will have to install a copy on your local machine, or connect to the MySQL server on a machine somewhere on the Internet.
 
