@@ -25,7 +25,7 @@ description: > # this means to ignore newlines until "Language & timezone"
 ## => Language and Timezone
 ##############################
 lang: # the language of your site, default as "en"
-timezone: # see https://en.wikipedia.org/wiki/List_of_tz_database_time_zones for the available values
+timezone: 	Asia/Calcutta # see https://en.wikipedia.org/wiki/List_of_tz_database_time_zones for the available values
 
 ## => Author and Social
 ##############################
@@ -158,7 +158,7 @@ analytics:
 
   ## Google Analytics
   google:
-    tracking_id: # Google Analytics id for the site
+    tracking_id: G-88PZ8F2E3C # Google Analytics id for the site
     anonymize_ip: false # Anonymize IP tracking for Analytics
 
 ## => Build
@@ -206,4 +206,4 @@ plugins:
   - jekyll-paginate
   - jekyll-sitemap
   - jemoji
-  # - jekyll-seo-tag
+  - jekyll-seo-tag
