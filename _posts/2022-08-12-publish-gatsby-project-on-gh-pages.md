@@ -2,6 +2,7 @@
 layout: article
 title: "Publish a Gatsby project on github pages"
 excerpt: "Host your static site for free on github pages!"
+date: 2022-08-03 
 tags: [Gatsby, Github pages]
 mathjax: false
 mathjax_autoNumber: false

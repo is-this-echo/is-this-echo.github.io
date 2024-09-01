@@ -13,49 +13,66 @@ key: elastic-search-dynamic-mapping
 
 ## Problem Statement
 
-Recently, I came across an issue(or feature?🤔)
+Recently, I came across an issue(or feature?🤔) regarding Elasticsearch(ES) at my workplace. One of my colleagues has created a `Data View` in Kibana but there is a problem! 
 
-Mac OS X doesn't ship with its own copy of `MySQL`, nor does `Sequel Pro`. You will have to install a copy on your local machine, or connect to the MySQL server on a machine somewhere on the Internet.
+A field in that view appears as a `Timestamp` field type but she wanted it to be a `Text` field.
 
-Most webservers and website packages will include a MySQL installation as part of the services they provide, and usually provide external connection details to allow you to connect to them in an external program like Sequel Pro. (See [Web Hosting Providers](https://sequelpro.com/docs/Web_Hosting_Providers) for a list of hosting options).
+For the remainder of this post, we'll refer to it as **Field-X**.
 
-**Important!** IncoPOS for macOS can now download, install and configure MySQL server for you when it is started for the first time. You can download it from [here](https://vladster.net/en/downloads/).
+So, how did the field type change? The answer is --- it didn't change, it was always a `Date` or `Timestamp` type. To understand the flow and how the type of a field is determined by ES, I will briefly walk you through the steps involved from data ingestion to data-view creation in Kibana.
+
+<u>This is how it goes: </u>
+
+- Raw data is ingested through [Nifi](https://nifi.apache.org/documentation/v2/) to [HDFS](https://hadoop.apache.org/docs/r1.2.1/hdfs_design.html) and corresponding [Hive](https://hive.apache.org/) tables.
+- Data is fetched from HDFS and is processed in Spark (perform some complex join queries).
+- After processing, the final dataframe output is written to a CSV file on an Edge node.
+- The CSVs are transferred to the Logstash server using sftp or by [mounting the directory](https://serverfault.com/questions/410588/how-to-mount-a-directory-from-another-server) to an ES node.
+- A Logstash config file is created and the index name along with the conf file path is set in `pipelines.yml` file, &nbsp; &nbsp; &nbsp; the [conf file](https://raw.githubusercontent.com/is-this-echo/blog-img-hosting/main/images/insight_forge_data.conf) contains details like CSVs path & delimiter, logfile path, field names, Kibana credentials etc.
+- Data collected in Logstash is then used by ES to visualize in Kibana based on the conf file.
+
+
+**Important!**  All the stuff from here on has been tested on ES 8.6.x, at the time of writing this post the latest version of ES available is [8.11.14](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html) and the content explained here applies to both the tested version and the latest one.
 {:.info}
 
-## Download MySQL
+***
 
-The first step is to download `MySQL` server on your Mac. 
+## Dynamic Mapping - boon or a bane?
 
-Go to the [MySQL web site](https://dev.mysql.com/downloads/mysql/) and select the version that matches your version of Mac OS. Select the `DMG archive` version which I recommend. Open the installer and follow the installation steps.
-
-**Warning!** Because Oracle has changed the MySQL installer and the default parameters of the MySQL server in newer versions the following steps may no longer work. These steps were tested with MySQL server version 5.7.18 for macos10.12 in 2017 and I hoped this still worked fine with latest version. If not, feel free to leave a comment and I will update this post ASAP.
-{:.warning}
+ES has a super cool feature - _dynamic field mapping_, straight from ES official site : 
+> *To index a document, you don’t have to first create an index, define a mapping type, and define your fields — you can just index a document and the index, type, and fields will display automatically*
 
 
-```bash
-$ mysql --version
-mysql  Ver 14.14 Distrib 5.7.18, for macos10.12 (x86_64) using  EditLine wrapper
+In our case, we didn't specify the index field mappings in Kibana beforehand, although later we modified the conf file to mutate **Field-X** to a string but our efforts were in vain as dynamic mapping has yet another trick up it's sleeve --  _**date detection**_ (enabled by default). Since the string value in **Field-X** passed the detection it was considered as a `Date` field nonetheless.
+
+```json
+mutate {
+      convert =>{"FIELD-X" => "string"}
+	  ...
+   }
 ```
 
+So, it turns out the source of our problem was relying only on Logstash config to create index, load data and render the views on Kibana. ES offers a lot more control via its APIs, read on to find out how we solved the issue.
 
-Please download and install version 5.5.48 to make sure that all the steps will work correctly. If for some reason the installer is no longer available on the MySQL web site you can download it from here.
+***
 
-<img src="https://github.com/Zhenye-Na/Zhenye-Na.github.io/blob/master/assets/images/posts-img/mysql-installation/mysql1.png?raw=true" class="pics" />
-<br>
-<img src="https://github.com/Zhenye-Na/Zhenye-Na.github.io/blob/master/assets/images/posts-img/mysql-installation/mysql2.png?raw=true" class="pics" />
-<br>
-<img src="https://github.com/Zhenye-Na/Zhenye-Na.github.io/blob/master/assets/images/posts-img/mysql-installation/mysql3.png?raw=true" class="pics" />
-<br><br>
-Pay attention to the password in notification center. If you do not save the proper `password` for `admin`, open notification center and scroll a little bit, you will find something like this:
+## Explicit Mapping to the rescue!
 
-<img src="https://github.com/Zhenye-Na/Zhenye-Na.github.io/blob/master/assets/images/posts-img/mysql-installation/mysql4.jpg?raw=true" class="pics" /> 
+As the name suggests, _explicit field mapping_ was introduced to overpower  _dynamic field mapping_, it allows us to specify our own explicit mappings for an index as we know more about our data than ES can guess.
 
+Since our index has already been created, we couldn't change the mapping or field type of an existing field as it could invalidate loaded data in the view.
 
-## MySQL Configuration
+<u>Therefore, these are the steps we followed: </u>
 
-- Choose Apple () menu > System Preferences > MySQL, select MySQL and start MySQL server and move to the next step. If you use MySQL frequently, make sure to leave the checkbox **“Automatically Start MySQL Server on Startup”** so you won’t have to do that again and again.
+- Create a new index with explicit field mapping.
+- Copy data from old index to new index using ES **Reindex API**.
+- Modify the Logstash conf file to change index name.
 
-<img src="https://github.com/Zhenye-Na/Zhenye-Na.github.io/blob/master/assets/images/posts-img/mysql-installation/mysql6.png?raw=true" class="pics" />
+Lets go through the steps in detail in the next section.
+
+***
+
+## Implementing the solution
+
 
 
 - Open terminal and type:
